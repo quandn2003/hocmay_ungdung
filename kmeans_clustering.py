@@ -321,54 +321,90 @@ def calinski_harabasz_index(X, labels, centroids, k):
     ch_index = (between_cluster_ss / (k - 1)) / (within_cluster_ss / (n_samples - k))
     return ch_index
 
-def visualize_clusters(X_pca, labels, companies, title='Cluster Visualization'):
+def find_most_influential_features(X, feature_names=None):
     """
-    Visualize clusters in 2D space
+    Find the most influential features based on the covariance matrix
+    
+    Parameters:
+    -----------
+    X : array-like, shape (n_samples, n_features)
+        Input data matrix
+    feature_names : list or None
+        Names of features corresponding to columns in X
+        
+    Returns:
+    --------
+    influential_indices : list
+        Indices of the most influential features
+    influential_names : list
+        Names of the most influential features (if feature_names provided)
     """
-    # Use only first two dimensions for visualization
-    X_2d = X_pca[:, :2] if X_pca.shape[1] >= 2 else X_pca
+    # Calculate the covariance matrix
+    cov_matrix = np.cov(X, rowvar=False)
     
-    # Get unique clusters
-    unique_clusters = np.unique(labels)
-    n_clusters = len(unique_clusters)
+    # Get the diagonal elements (variances)
+    variances = np.diag(cov_matrix)
     
-    # Create color map
-    cmap = plt.cm.get_cmap('tab10', n_clusters)
+    # Find indices of features with highest variance
+    influential_indices = np.argsort(variances)[::-1][:3]
     
-    # Plot the clusters
-    plt.figure(figsize=(12, 8))
+    # Get feature names if provided
+    influential_names = None
+    if feature_names is not None:
+        influential_names = [feature_names[i] for i in influential_indices]
     
-    for i, cluster in enumerate(unique_clusters):
-        cluster_points = X_2d[labels == cluster]
-        plt.scatter(cluster_points[:, 0], cluster_points[:, 1], 
-                    c=[cmap(i)], label=f'Cluster {cluster+1}', alpha=0.7)
-    
-    # Add labels for some points (showing company names)
-    for i, (company, x, y) in enumerate(zip(companies, X_2d[:, 0], X_2d[:, 1])):
-        if i % 10 == 0:  # Label every 10th point to avoid clutter
-            plt.annotate(company, (x, y), fontsize=8)
-    
-    plt.title(title)
-    plt.xlabel('Principal Component 1')
-    plt.ylabel('Principal Component 2')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f'{title.replace(" ", "_").lower()}.png')
-    plt.close()
-    
-    print(f"Cluster visualization saved as '{title.replace(' ', '_').lower()}.png'")
-    
-    # 3D visualization if we have at least 3 components
-    if X_pca.shape[1] >= 3:
-        visualize_clusters_3d(X_pca, labels, companies, title)
+    return influential_indices, influential_names
 
-def visualize_clusters_3d(X_pca, labels, companies, title='Cluster Visualization 3D'):
+def find_most_influential_pca_components(pca):
     """
-    Visualize clusters in 3D space using the first 3 principal components
+    Find the three most influential PCA components based on explained variance ratio
+    
+    Parameters:
+    -----------
+    pca : PCA object
+        Fitted PCA object with explained_variance_ratio_ attribute
+        
+    Returns:
+    --------
+    influential_indices : list
+        Indices of the most influential PCA components
     """
-    # Use only the first 3 dimensions for visualization
-    X_3d = X_pca[:, :3]
+    # Get the explained variance ratio
+    explained_variance_ratio = pca.explained_variance_ratio_
+    
+    # Find indices of PCA components with highest variance explanation
+    influential_indices = np.argsort(explained_variance_ratio)[::-1][:3]
+    
+    return influential_indices
+
+def visualize_clusters_3d(X_pca, labels, companies, title='Cluster Visualization 3D', pca=None):
+    """
+    Visualize clusters in 3D space using the three most influential PCA components
+    """
+    # Create result directory if it doesn't exist
+    result_dir = "result"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+        print(f"Created directory: {result_dir}")
+    
+    # If PCA object is provided, use most influential components
+    if pca is not None and hasattr(pca, 'explained_variance_ratio_'):
+        influential_indices = find_most_influential_pca_components(pca)
+        X_3d = X_pca[:, influential_indices]
+        
+        # Update title and axis labels
+        component_indices = [i+1 for i in influential_indices]  # 1-indexed for display
+        title = f"{title} (Most Influential PCA Components)"
+        xlabel = f"PCA Component {component_indices[0]} ({pca.explained_variance_ratio_[influential_indices[0]]:.2%})"
+        ylabel = f"PCA Component {component_indices[1]} ({pca.explained_variance_ratio_[influential_indices[1]]:.2%})"
+        zlabel = f"PCA Component {component_indices[2]} ({pca.explained_variance_ratio_[influential_indices[2]]:.2%})"
+    else:
+        # Fallback to first three components
+        X_3d = X_pca[:, :3]
+        title = f"{title} (First 3 PCA Components)"
+        xlabel = "Principal Component 1"
+        ylabel = "Principal Component 2"
+        zlabel = "Principal Component 3"
     
     # Get unique clusters
     unique_clusters = np.unique(labels)
@@ -392,18 +428,28 @@ def visualize_clusters_3d(X_pca, labels, companies, title='Cluster Visualization
             ax.text(x, y, z, company, fontsize=8)
     
     ax.set_title(title)
-    ax.set_xlabel('Principal Component 1')
-    ax.set_ylabel('Principal Component 2')
-    ax.set_zlabel('Principal Component 3')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
     ax.legend()
     plt.tight_layout()
     
-    # Save figure with 3D in filename
-    filename = f'{title.replace(" ", "_").lower()}_3d.png'
+    # Save figure to result directory
+    filename = os.path.join(result_dir, f'{title.replace(" ", "_").lower()}.png')
     plt.savefig(filename)
     plt.close()
     
     print(f"3D cluster visualization saved as '{filename}'")
+
+def visualize_clusters(X_pca, labels, companies, title='Cluster Visualization', pca=None):
+    """
+    Visualize clusters in 3D space using the most influential PCA components
+    """
+    # Skip 2D visualization and only do 3D visualization if we have at least 3 components
+    if X_pca.shape[1] >= 3:
+        visualize_clusters_3d(X_pca, labels, companies, title, pca)
+    else:
+        print(f"Warning: Cannot create 3D visualization, only {X_pca.shape[1]} components available")
 
 def find_elbow_point(k_values, sse_values):
     """
@@ -474,6 +520,11 @@ def plot_elbow_method(k_values, sse_values, optimal_k, method='AI-Daoud'):
     method : str
         Initialization method name for the title
     """
+    # Create result directory if it doesn't exist
+    result_dir = "result"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+    
     plt.figure(figsize=(10, 6))
     plt.plot(k_values, sse_values, 'bo-')
     plt.plot(optimal_k, sse_values[k_values.index(optimal_k)], 'ro', markersize=10, 
@@ -486,11 +537,12 @@ def plot_elbow_method(k_values, sse_values, optimal_k, method='AI-Daoud'):
     plt.legend()
     plt.tight_layout()
     
-    # Save the figure
-    plt.savefig(f'elbow_method_{method.lower().replace("-", "_")}.png')
+    # Save the figure to result directory
+    filename = os.path.join(result_dir, f'elbow_method_{method.lower().replace("-", "_")}.png')
+    plt.savefig(filename)
     plt.close()
     
-    print(f"Elbow method plot saved as 'elbow_method_{method.lower().replace('-', '_')}.png'")
+    print(f"Elbow method plot saved as '{filename}'")
 
 def main():
     # Parse command-line arguments
@@ -616,9 +668,9 @@ def main():
             counts = [np.sum(method_labels == i) for i in range(k)]
             print(f"{method}: {counts}")
         
-        # Visualize clusters
-        visualize_clusters(X_pca, ai_daoud_labels, companies, f'AI-Daoud Clusters (k={k})')
-        visualize_clusters(X_pca, random_labels, companies, f'Random Clusters (k={k})')
+        # Visualize clusters with most influential PCA components
+        visualize_clusters(X_pca, ai_daoud_labels, companies, f'AI-Daoud Clusters (k={k})', pca)
+        visualize_clusters(X_pca, random_labels, companies, f'Random Clusters (k={k})', pca)
     
     # If we have multiple k values, find the best k based on silhouette score
     if len(k_values) > 1:
@@ -652,6 +704,11 @@ def plot_metrics(results):
     """
     Plot metrics comparison between AI-Daoud and random initialization
     """
+    # Create result directory if it doesn't exist
+    result_dir = "result"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+    
     k_values = [r['k'] for r in results]
     
     # Silhouette score (higher is better)
@@ -710,10 +767,13 @@ def plot_metrics(results):
     axs[1, 1].grid(True)
     
     plt.tight_layout()
-    plt.savefig('metrics_comparison.png')
+    
+    # Save to result directory
+    filename = os.path.join(result_dir, 'metrics_comparison.png')
+    plt.savefig(filename)
     plt.close()
     
-    print("Metrics comparison plot saved as 'metrics_comparison.png'")
+    print(f"Metrics comparison plot saved as '{filename}'")
 
 if __name__ == "__main__":
     main() 
