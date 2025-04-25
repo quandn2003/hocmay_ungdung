@@ -1,0 +1,7 @@
+numpy==2.2.5
+matplotlib==3.10.1
+scipy==1.15.2
+scikit-learn==1.6.1
+dtw-python==1.5.3
+statsmodels==0.14.4
+kneed==0.8.5
