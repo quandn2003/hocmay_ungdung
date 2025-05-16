@@ -67,40 +67,11 @@ def extract_features(data, use_advanced_features=True):
     for company, time_series in data.items():
         companies.append(company)
         
-        if use_advanced_features:
-            # Use advanced feature extraction
-            feature_values, feature_names_list = extract_all_features(time_series)
-            if feature_names is None:
-                feature_names = feature_names_list
-            features[company] = feature_values
-        else:
-            # Simple feature extraction
-            mean = np.mean(time_series)
-            std = np.std(time_series)
-            min_val = np.min(time_series)
-            max_val = np.max(time_series)
-            range_val = max_val - min_val
-            
-            # Trend features
-            n = len(time_series)
-            x = np.arange(n)
-            slope, _ = np.polyfit(x, time_series, 1)
-            
-            # Volatility features
-            returns = np.diff(time_series) / time_series[:-1]
-            volatility = np.std(returns)
-            
-            # Statistical features
-            skewness = np.mean(((time_series - mean) / std) ** 3) if std != 0 else 0
-            kurtosis = np.mean(((time_series - mean) / std) ** 4) if std != 0 else 0
-            
-            # Combine features
-            feature_vector = np.array([
-                mean, std, min_val, max_val, range_val, 
-                slope, volatility, skewness, kurtosis
-            ])
-            
-            features[company] = feature_vector
+        # Use advanced feature extraction
+        feature_values, feature_names_list = extract_all_features(time_series)
+        if feature_names is None:
+            feature_names = feature_names_list
+        features[company] = feature_values
     
     # Convert to numpy array
     X = np.array([features[company] for company in companies])
@@ -322,39 +293,6 @@ def calinski_harabasz_index(X, labels, centroids, k):
     ch_index = (between_cluster_ss / (k - 1)) / (within_cluster_ss / (n_samples - k))
     return ch_index
 
-def find_most_influential_features(X, feature_names=None):
-    """
-    Find the most influential features based on the covariance matrix
-    
-    Parameters:
-    -----------
-    X : array-like, shape (n_samples, n_features)
-        Input data matrix
-    feature_names : list or None
-        Names of features corresponding to columns in X
-        
-    Returns:
-    --------
-    influential_indices : list
-        Indices of the most influential features
-    influential_names : list
-        Names of the most influential features (if feature_names provided)
-    """
-    # Calculate the covariance matrix
-    cov_matrix = np.cov(X, rowvar=False)
-    
-    # Get the diagonal elements (variances)
-    variances = np.diag(cov_matrix)
-    
-    # Find indices of features with highest variance
-    influential_indices = np.argsort(variances)[::-1][:3]
-    
-    # Get feature names if provided
-    influential_names = None
-    if feature_names is not None:
-        influential_names = [feature_names[i] for i in influential_indices]
-    
-    return influential_indices, influential_names
 
 def find_most_influential_pca_components(pca):
     """
