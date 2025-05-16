@@ -184,7 +184,8 @@ def kmeans(X, k, max_iters=100, init_method='ai_daoud'):
     # Initialize centroids based on chosen method
     if init_method == 'ai_daoud':
         centroids = ai_daoud_initialization(X, k)
-    else:  # random initialization
+    else:  # random initialization with random seed
+        np.random.seed(41)
         random_indices = np.random.choice(n_samples, k, replace=False)
         centroids = X[random_indices]
     
@@ -562,21 +563,19 @@ def main():
     # Load data
     print("Loading data...")
     data = load_data()
-    print(f"Loaded {len(data)} time series.")
     
     # Preprocess data
     print("Preprocessing data...")
     preprocessed_data = preprocess_data(data)
-    
     # Extract features
     print("Extracting advanced time series features...")
     X, companies, feature_names = extract_features(preprocessed_data, use_advanced_features=True)
     print(f"Feature matrix shape: {X.shape}")
-    
+    print(f"############ Type of X: {type(X)} {X.shape} ############")
     # Apply PCA for dimensionality reduction
     print("Applying PCA for dimensionality reduction...")
     X_pca, pca = apply_pca(X, n_components=0.95)
-    
+    print(f"############ Type of X_pca: {type(X_pca)} {X_pca.shape} ############")
     # Determine k values to try
     if args.elbow:
         print("\nRunning Elbow Method to find optimal k...")
